@@ -18,7 +18,7 @@
         {
             "label": "run",
             "type": "shell",
-            "command": "make build && sudo dosbox -c \"mount G ~/asm-game\" -c \"G:\"",
+            "command": "make run",
             "problemMatcher": [
                 "$eslint-compact"
             ],
