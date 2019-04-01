@@ -13,10 +13,9 @@ _start:
     ; mov     ds, ax 
 
 
-    ;call draw_interface
-    call ini_field
+    call draw_interface ; not safe
+    call ini_field ; not safe
     
-    call upd_video
 
     call sleep
 
@@ -182,7 +181,8 @@ draw_block: ; ax = row, bx = column, cx = data_ptr
     pop     ax
     ret
 
-draw_interface: ; http://www.codenet.ru/progr/dos/int_0009.php    
+; http://www.codenet.ru/progr/dos/int_0009.php
+draw_interface: ; not safe    
     mov     dh, 0           ; row
     mov     dl, 22          ; column
     lea     cx, [score_str] ; data_ptr
@@ -209,56 +209,134 @@ draw_interface: ; http://www.codenet.ru/progr/dos/int_0009.php
         mov     dx, 1
         cmp     di, dx
         jnz     dil1
-    ret
-    
-ini_field:
-    push    di
-    
-    lea     di, [field1]
-    mov     [di], byte 2
-    mov     [di + 1], byte 2
-    mov     [di + 2], byte 2
-    mov     [di + 3], byte 1
 
-    pop     di
+    lea     cx, [empty_block]
+    mov     di, 22
+    dil3:
+        mov     si, 37
+        dil4:
+            mov     ax, di
+            mov     bx, si
+            call    draw_block      ; ax = row, bx = column, cx = data_ptr, everything dead, except si, di
+            dec     si
+            mov     dx, 1
+            cmp     si, dx
+            jnz     dil4
+        dec     di
+        mov     dx, 3
+        cmp     di, dx
+        jnz     dil3
+
+    ret
+
+upd_field:
+    
+
+ini_field: ; not safe
+    ; TODO: check overflow
+    lea     di, [snake1_datax]
+    lea     si, [snake1_datay]
+    lea     cx, [snake1]
+
+    mov     [di], byte 2
+    mov     [si], byte 4
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    inc     si
+    inc     di
+    mov     [di], byte 3
+    mov     [si], byte 4
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    inc     si
+    inc     di
+    mov     [di], byte 4
+    mov     [si], byte 4
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    lea     cx, [snake1_head] 
+    inc     si
+    inc     di
+    mov     [di], byte 5
+    mov     [si], byte 4
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    lea     di, [snake2_datax]
+    lea     si, [snake2_datay]
+    lea     cx, [snake2]
+
+    mov     [di], byte 37
+    mov     [si], byte 22
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    inc     si
+    inc     di
+    mov     [di], byte 36
+    mov     [si], byte 22
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    inc     si
+    inc     di
+    mov     [di], byte 35
+    mov     [si], byte 22
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    lea     cx, [snake2_head] 
+    inc     si
+    inc     di
+    mov     [di], byte 34
+    mov     [si], byte 22
+    xor     ax, ax
+    mov     al, [si]
+    xor     bx, bx
+    mov     bl, [di]
+    call    draw_block
+
+    mov     [tail1], word 0
+    mov     [tail2], word 0
+    mov     [head1], word 3
+    mov     [head2], word 3
+
+    mov     [dir1], byte 1
+    mov     [dir2], byte 3
+
+    mov     [button1], byte 0
+    mov     [button2], byte 0
+
+    mov     [game_over], byte 0
+    mov     [score], word 0
+
+    
     ret    
 
-
-
-upd_video:
-    ; TODO: mul into shl
-    ; TODO: check state
-    push    ax
-    push    cx
-    push    di
-
-    lea     di, [field1]
-
-    mov     cx, 21
-    uvl1:
-        push    cx
-        mov     ax, cx
-        mov     cx, 34
-        uvl2:
-            push    cx
-            mov     bx, cx
-            
-            mov     cx, di
-            
-            call    draw_block      ; ax = row, bx = column, cx = data_ptr
-            
-
-            pop     cx
-            loop    uvl2
-
-        pop     cx
-        loop    uvl1
-
-
-    pop     di
-    pop     cx
-    pop     ax
-    ret
 
 all:
     xor     di, di
@@ -385,79 +463,91 @@ all:
 
 
 section      .data
-state:
-    db      0
 score_str: 
     db      'score: ', 0
 hiscore_str:
     db      'hiscore: ', 0
-game_over:
-    db      0
-score:
-    db      0
 hiscore:
     db      0
-button_1:
-    db      0
-dir_1:
-    db      0
-button_2:
-    db      0
-dir_2:
-    db      0
 brick:
-    db 06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
-    db 72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
-    db 06h, 06h, 06h, 0xa1, 06h, 06h, 06h, 0xa1,
-    db 72h, 72h, 72h, 0xa1, 72h, 72h, 72h, 0xa1,
-    db 06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
-    db 72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
-    db 06h, 06h, 06h, 0xa1, 06h, 06h, 06h, 0xa1,
-    db 72h, 72h, 72h, 0xa1, 72h, 72h, 72h, 0xa1
+    db      06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
+    db      72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
+    db      06h, 06h, 06h, 0xa1, 06h, 06h, 06h, 0xa1,
+    db      72h, 72h, 72h, 0xa1, 72h, 72h, 72h, 0xa1,
+    db      06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
+    db      72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
+    db      06h, 06h, 06h, 0xa1, 06h, 06h, 06h, 0xa1,
+    db      72h, 72h, 72h, 0xa1, 72h, 72h, 72h, 0xa1
 
 snake1:
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 9fh, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 9fh, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 9fh, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 9fh, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 9fh, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 9fh, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
 
 snake2:
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 9fh, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 9fh, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 9fh, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 9fh, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 9fh, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 9fh, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
 
 snake1_head:
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 00h, 00h, 00h, 00h, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 00h, 00h, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
-    db 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 00h, 00h, 00h, 00h, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 00h, 00h, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
+    db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
 
 snake2_head:
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 00h, 00h, 00h, 00h, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 00h, 00h, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
-    db 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 00h, 00h, 00h, 00h, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 00h, 00h, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
+    db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
 
 
 section     .bss
-field1:
-    resb      34 * 21
-field2:
-    resb      34 * 21
+empty_block:
+    resb    8 * 8
+snake1_datax:
+    resb    34 * 21
+snake1_datay:
+    resb    34 * 21
+snake2_datax:
+    resb    34 * 21
+snake2_datay:
+    resb    34 * 21
+button1:
+    resb    1
+dir1:
+    resb    1
+button2:
+    resb    1
+dir2:
+    resb    1
+head1:
+    resw    1
+head2:
+    resw    1
+tail1:
+    resw    1
+tail2:
+    resw    1
+game_over:
+    resb    1
+score:
+    resb    1

@@ -1,5 +1,5 @@
 SOURCES=src/main.asm
-GENERATED=main.exe
+GENERATED=main.com
 COMPILER=nasm
 DOSBOX=dosbox
 .PHONY: build run
