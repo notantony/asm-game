@@ -13,11 +13,12 @@ _start:
     ; mov     ds, ax 
 
 
-    call draw_interface ; not safe
-    call ini_field ; not safe
+    call    draw_interface     ; not safe
+    call    ini_field          ; not safe
     
+    call    dbg_table
 
-    call sleep
+    call    sleep
 
 
     ;call dbg
@@ -123,7 +124,7 @@ draw_word: ; dh = row, dl = column, cx = data_ptr
     mov     di, 0           ; offset
     dwl1:
         mov     ah, 02h
-        int     10h         ; set pointer, DH = row, DL = column
+        int     10h         ; set cursor, dh = row, dl = column
 
         mov     bx, cx 
         add     bx, di      
@@ -202,12 +203,10 @@ draw_interface: ; not safe
             mov     bx, si
             call    draw_block      ; ax = row, bx = column, cx = data_ptr, everything dead, except si, di
             dec     si
-            mov     dx, -1
-            cmp     si, dx
+            cmp     si, -1
             jnz     dil2
         dec     di
-        mov     dx, 1
-        cmp     di, dx
+        cmp     di, 1
         jnz     dil1
 
     lea     cx, [empty_block]
@@ -230,7 +229,40 @@ draw_interface: ; not safe
     ret
 
 upd_field:
-    
+
+dbg_table: ; not safe
+    mov     di, 23
+    stl1:
+        mov     si, 38
+        stl2:
+            mov     ax, di
+            mov     bx, si
+            mov     dh, al
+            mov     dl, bl
+            xor     al, al
+            mov     ah, 02h
+            int     10h
+
+            mov     ax, 40
+            mul     di
+            add     ax, si
+            mov     bx, ax
+            lea     bx, [bx + table]
+
+            mov     al, byte [bx]
+            add     al, '0'
+
+            call    draw_letter
+
+          
+            dec     si
+            cmp     si, 0
+            jnz     stl2
+        dec     di
+        cmp     di, 2
+        jnz     stl1
+    ret
+
 
 ini_field: ; not safe
     ; TODO: check overflow
@@ -320,6 +352,60 @@ ini_field: ; not safe
     mov     bl, [di]
     call    draw_block
 
+
+
+    mov     di, 23
+    ifl1:
+        mov     si, 38
+        ifl2:
+            mov     ax, 40
+            mul     di
+            add     ax, si
+            mov     bx, ax
+            lea     bx, [bx + table]
+
+            mov     [bx], byte 1 
+          
+            dec     si
+            cmp     si, 0
+            jnz     ifl2
+        dec     di
+        cmp     di, 2
+        jnz     ifl1
+
+    mov     di, 22
+    ifl3:
+        mov     si, 37
+        ifl4:
+            mov     ax, 40
+            mul     di
+            add     ax, si
+            mov     bx, ax
+            lea     bx, [bx + table]
+
+            mov     [bx], byte 0 
+          
+            dec     si
+            cmp     si, 1
+            jnz     ifl4
+        dec     di
+        cmp     di, 3
+        jnz     ifl3
+    
+
+    mov     cx, 320
+    mov     [table + 40 * 22 + 34], byte 1
+    mov     [table + 40 * 22 + 35], byte 1
+    mov     [table + 40 * 22 + 36], byte 1
+    mov     [table + 40 * 22 + 37], byte 1
+    mov     [table + 40 * 4 + 2], byte 1
+    mov     [table + 40 * 4 + 3], byte 1
+    mov     [table + 40 * 4 + 4], byte 1
+    mov     [table + 40 * 4 + 5], byte 1
+
+
+    mov     cx, 40
+
     mov     [tail1], word 0
     mov     [tail2], word 0
     mov     [head1], word 3
@@ -332,10 +418,8 @@ ini_field: ; not safe
     mov     [button2], byte 0
 
     mov     [game_over], byte 0
-    mov     [score], word 0
-
-    
-    ret    
+    mov     [score], word 0    
+    ret
 
 
 all:
@@ -524,13 +608,15 @@ section     .bss
 empty_block:
     resb    8 * 8
 snake1_datax:
-    resb    34 * 21
+    resb    21 * 34
 snake1_datay:
-    resb    34 * 21
+    resb    21 * 34
 snake2_datax:
-    resb    34 * 21
+    resb    21 * 34
 snake2_datay:
-    resb    34 * 21
+    resb    21 * 34
+table:
+    resb    25 * 40
 button1:
     resb    1
 dir1:
