@@ -24,7 +24,9 @@ _start:
     call    upd_field           ; not safe
     call    upd_video           ; not safe
     
-    mov     cx, 500000
+    ;call    dbg_table
+    
+    mov     cx, 30000
     wait_key:
     call    upd_dirs
     loop    wait_key
@@ -32,14 +34,7 @@ _start:
     ;call    sleep
     jmp     slmain
 
-    call    upd_field           ; not safe
-    call    upd_video           ; not safe
-    call    upd_field           ; not safe
-    call    upd_video           ; not safe
-
-
-    call    dbg_table           ; not safe
-
+    
     call    sleep
     ;jmp      slmain
 
@@ -99,14 +94,12 @@ printnum:
     pop    ax
     ret
 
-dbg:
-    push    ax
-    in      al, 0x40          ; al = low byte of count
-	mov     ah, al           ; ah = low byte of count
-	in      al, 0x40          ; al = high byte of count
-	rol     ax, 8    
-    call    printnum
-    pop     ax
+get_time: ; return: ax - timer
+    in      al, 0x40            ; al = low byte of count
+	mov     ah, al              ; ah = low byte of count
+	in      al, 0x40            ; al = high byte of count
+	rol     ax, 8               ; swap bits 
+    ;call    printnum
     ret
 
 enter_13h:
@@ -216,18 +209,18 @@ draw_block: ; ax = row, bx = column, cx = data_ptr
 ; http://www.codenet.ru/progr/dos/int_0009.php
 draw_interface: ; not safe    
     mov     dh, 0           ; row
-    mov     dl, 4          ; column
+    mov     dl, 3           ; column
     lea     cx, [snake_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
 
     mov     dh, 0           ; row
     mov     dl, 22          ; column
-    lea     cx, [score_str] ; data_ptr
+    lea     cx, [player1_score_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr 
 
     mov     dh, 1           ; row
-    mov     dl, 20          ; column
-    lea     cx, [hiscore_str] ; data_ptr
+    mov     dl, 22          ; column
+    lea     cx, [player2_score_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr 
 
     lea     cx, [brick]
@@ -272,6 +265,15 @@ set_table: ; al = row, bl = column, cl = byte: ax, bx not safe
     add     bx, ax
     mov     [bx + table], cl        ; deleted tail1 from table
     
+    ret
+
+get_table: ; al = row, bl = column, cl = byte: ax, bx not safe
+    xor     ah, ah
+    mov     bh, 40
+    mul     bh
+    xor     bh, bh
+    add     bx, ax
+    mov     cl, byte [bx + table]
     ret
 
 move_tails:
@@ -324,11 +326,45 @@ move_tails:
 
     ret
 
+
+add_tail2:
+    mov     al, [old2x]
+    mov     bl, [old2y]
+    mov     cl, 3
+    call    set_table
+
+    mov     di, [tail2] ; TODO: check overflow
+    dec     di
+
+    cmp     di, -1
+    jnz     ovf6
+    mov     di, 21 * 34 - 1
+    
+    ovf6:
+
+    mov     [tail2], di
+    ret
+add_tail1:
+    mov     al, [old1x]
+    mov     bl, [old1y]
+    mov     cl, 2
+    call    set_table
+
+    mov     di, [tail1] ; TODO: check overflow
+    dec     di
+
+    cmp     di, -1
+    jnz     ovf5
+    mov     di, 21 * 34 - 1
+    
+    ovf5:
+
+    mov     [tail1], di
+    ret
+
 move_step2:
     mov     ah, [dir2]
     jmp     ms2_enter
-
-
 move_step1:  ; al = x, bl = y, return: al = x', bl = y', ah not safe
     mov     ah, [dir1]
     ms2_enter:
@@ -425,30 +461,100 @@ move_heads:
     
     mov     al, [new1y]
     mov     bl, [new1x]
-    mov     cl, 1
+    call    get_table
+    cmp     cl, 4
+    jnz     mh1
+    add     [apple], byte 1
+    call    add_tail1
+    
+    mh1:
+    mov     al, [new2y]
+    mov     bl, [new2x]
+    call    get_table
+    cmp     cl, 4
+    jnz     mh2
+    add     [apple], byte 2
+    call    add_tail2
+
+    mh2:
+    mov     al, [new1y]
+    mov     bl, [new1x]
+    mov     cl, 2
     call    set_table
 
     mov     al, [new2y]
     mov     bl, [new2x]
-    mov     cl, 1
+    mov     cl, 3
     call    set_table
 
-    ret
 
-put_apples:
-    mov     al, [apple1]
-    cmp     al, 0
-    jnz     pa2
-    pa2:
 
     ret
+
+endgame:
+    call dbg_table
+    call sleep
+    ret
+
+put_apples: ; not safe
+    pa_begin:
+
+    mov     al, [apple]
+    cmp     al, 1
+    jz      pa_exit
+
+    call    get_time
+    mov     bl, al
+    xor     bl, ah
+    pal1:
+        sub     bl, byte 36
+        jnb     pal1
+    add     bl, 36 + 2 ; [0, 36)
+    mov     dl, bl
+
+    call    get_time
+    mov     bl, al
+    xor     bl, ah
+    pal2:
+        sub     bl, byte 19
+        jnb     pal2
+    add     bl, 19 + 4 ; [0, 19)
+    mov     dh, bl
+
+    xor     ah, ah
+    xor     bh, bh
+    mov     bl, dl
+    mov     al, dh
+    
+    call    get_table
+    test    cl, cl
+    jnz     pa_begin
+
+    xor     ah, ah
+    xor     bh, bh
+    mov     bl, dl
+    mov     al, dh
+    lea     cx, [apple_tex] ; TODO: apple tex
+    mov     [apple], byte 1
+    call    draw_block
+
+    mov     cl, byte 4
+    call    set_table
+    pa_exit:
+
+    ret
+
 
 upd_field: ; not safe
+    ;call    sleep
     call    put_apples
+    
     call    move_tails
     ; old[12][xy]
 
     call    move_heads
+
+
     ; new[12][xy]    
     ; oldhead[12][xy]
     
@@ -460,19 +566,28 @@ upd_field: ; not safe
     
     ; Everything ok?
     
-
-    uf_exit:
+    call endgame
+    
     ret
 
 upd_video:
-    ; TODO: case lost
+    ; TODO: case game over
     ; TODO: case apple
+    mov     ah, [apple] 
+    cmp     ah, 2
+    jz      uv1   
+    
     xor     ah, ah
     mov     al, [old1x]
     xor     bh, bh
     mov     bl, [old1y]
     lea     cx, [empty_block_tex]
     call    draw_block
+    
+    uv1:
+    mov     ah, [apple] 
+    cmp     ah, 3
+    jz      uv2
 
     xor     ah, ah
     mov     al, [old2x]
@@ -481,7 +596,7 @@ upd_video:
     lea     cx, [empty_block_tex]
     call    draw_block
 
-
+    uv2:
     xor     ah, ah
     mov     al, [oldhead1x]
     xor     bh, bh
@@ -599,6 +714,11 @@ upd_dirs:   ; ax not safe
     cmp     al, 53
     jz      ud_5
 
+    cmp     al, 32
+    jz      ud_space
+
+    jmp     ud_exit
+
     ud_8:
     mov     [dir2], byte 0
     jmp     ud_exit
@@ -615,12 +735,14 @@ upd_dirs:   ; ax not safe
     mov     [dir2], byte 1
     jmp     ud_exit
 
+    ud_space:
+    call    sleep
+
     ud_exit:
     ret
 
 
 ini_field: ; not safe
-    ; TODO: check overflow
     lea     di, [snake1_datax]
     lea     si, [snake1_datay]
     lea     cx, [snake1_tex]
@@ -708,7 +830,6 @@ ini_field: ; not safe
     call    draw_block
 
 
-
     mov     di, 23
     ifl1:
         mov     si, 38
@@ -749,14 +870,14 @@ ini_field: ; not safe
     
 
     mov     cx, 320
-    mov     [table + 40 * 22 + 34], byte 1
-    mov     [table + 40 * 22 + 35], byte 1
-    mov     [table + 40 * 22 + 36], byte 1
-    mov     [table + 40 * 22 + 37], byte 1
-    mov     [table + 40 * 4 + 2], byte 1
-    mov     [table + 40 * 4 + 3], byte 1
-    mov     [table + 40 * 4 + 4], byte 1
-    mov     [table + 40 * 4 + 5], byte 1
+    mov     [table + 40 * 22 + 34], byte 3
+    mov     [table + 40 * 22 + 35], byte 3
+    mov     [table + 40 * 22 + 36], byte 3
+    mov     [table + 40 * 22 + 37], byte 3
+    mov     [table + 40 * 4 + 2], byte 2
+    mov     [table + 40 * 4 + 3], byte 2
+    mov     [table + 40 * 4 + 4], byte 2
+    mov     [table + 40 * 4 + 5], byte 2
 
 
     mov     cx, 40
@@ -769,145 +890,18 @@ ini_field: ; not safe
     mov     [dir1], byte 1
     mov     [dir2], byte 3
 
-    mov     [button1], byte 0
-    mov     [button2], byte 0
-
     mov     [game_over], byte 0
     mov     [score], word 0    
     ret
 
 
-all:
-    xor     di, di
-    mov     bx, 320 * 75
-
-    draw_first_purple_block:
-        ;call    sleep
-        mov     [es:di], byte 100
-        add     di, 1
-        sub     bx, 1
-        jnz     draw_first_purple_block
-        
-
-    mov     bx, 320 * 25
-
-    draw_second_purple_block:
-        mov     [ es:di ], byte 101
-        add     di, 1
-        sub     bx, 1
-        jnz     draw_second_purple_block
-
-
-    mov     bx, 1
-    mov     di, 320 * 65 + 40
-
-    draw_triangle:
-        cmp     bx, 33
-        je      triangle_done
-
-        mov     cx, bx
-
-        draw_triangle_inner:
-            mov     [ es:di ], byte 102
-            add     di, 1
-            sub     cx, 1
-            jnz     draw_triangle_inner
-
-        add     bx, 2
-        add     di, 320
-
-        mov     ax, bx
-        sub     ax, 1
-
-        sub     di, ax
-
-        jmp     draw_triangle
-
-    triangle_done:
-
-    ; Write letter B to bottom right corner
-    ; DH = row, DL = column
-    mov     dh, 49
-    mov     dl, 30
-    xor     bh, bh
-    mov     ah, 02h
-    int     10h
-
-    ; BL = color, AL = letter (66 = B)
-    xor     bh, bh
-    mov     bl, 102
-    mov     ah, 0eh
-    mov     al, 66
-    int     10h
-
-
-    mov     di, 320 * 190 + 10
-
-    ; BL runs between 0..63
-    ; CL contains animation direction
-    xor     bl, bl
-    mov     cl, 1
-
-    ; Draws a red gradient line animation in top left corner
-    main_loop:
-        ; VGA input status
-        mov     dx, 03dah
-
-        ; Wait for vertical retrace start
-        wait_vr_start:
-            in      al, dx
-            test    al, 8
-            jnz     wait_vr_start
-
-        ; Wait for vertical retrace finish
-        wait_vr_finish:
-            in      al, dx,
-            test    al, 8
-            jz      wait_vr_finish
-
-        mov     [ es:di ], byte bl
-        cmp     cl, 1
-        je      to_right
-
-        ; To left
-        sub     di, 1
-        add     bl, 1
-
-        cmp     bl, 63
-        jl      end
-
-        xor     bl, bl
-        mov     cl, 1
-        jmp     end
-
-        to_right:
-            add     di, 1
-            add     bl, 1
-
-            cmp     bl, 63
-            jl      end
-
-            xor     bl, bl
-            xor     cl, cl
-
-        end:
-
-        ; Checks to see if a key is available in the keyboard buffer
-        mov     ah, 1
-        int     16h
-        jz      main_loop
-
-    ret
-
-
-
 section      .data
 snake_str:
     db      'SANEK II', 0
-score_str: 
-    db      'score: ', 0
-hiscore_str:
-    db      'hiscore: ', 0
+player1_score_str: 
+    db      'Player 1: ', 0
+player2_score_str:
+    db      'Player 2: ', 0
 hiscore:
     db      0
 brick:
@@ -959,8 +953,15 @@ snake2_head_tex:
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
-
-
+apple_tex:
+    db      00h, 00h, 0eh, 0eh, 02h, 02h, 0eh, 00h,
+    db      00h, 0eh, 0eh, 0eh, 02h, 0eh, 0eh, 0eh,
+    db      0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh,
+    db      0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh,
+    db      0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh,
+    db      0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh,
+    db      00h, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 00h,
+    db      00h, 00h, 0eh, 0eh, 0eh, 00h, 00h, 00h
 section     .bss
 empty_block_tex:
     resb    8 * 8
@@ -974,11 +975,7 @@ snake2_datay:
     resb    21 * 34
 table:
     resb    25 * 40
-button1:
-    resb    1
 dir1:
-    resb    1
-button2:
     resb    1
 dir2:
     resb    1
@@ -1018,7 +1015,5 @@ oldhead1y:
     resw    1
 oldhead2y:
     resw    1
-apple1:
-    resb    1
-apple2:
+apple:
     resb    1
