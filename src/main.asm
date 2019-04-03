@@ -11,21 +11,42 @@ _start:
 
     ; mov     ax, data 
     ; mov     ds, ax 
-
-
-    call    draw_interface     ; not safe
-    call    ini_field          ; not safe
     
-    call    dbg_table
+    ;call    sleep
+
+
+
+
+    call    draw_interface      ; not safe
+    call    ini_field           ; not safe
+    
+    slmain:
+    call    upd_field           ; not safe
+    call    upd_video           ; not safe
+    
+    mov     cx, 500000
+    wait_key:
+    call    upd_dirs
+    loop    wait_key
+
+    ;call    sleep
+    jmp     slmain
+
+    call    upd_field           ; not safe
+    call    upd_video           ; not safe
+    call    upd_field           ; not safe
+    call    upd_video           ; not safe
+
+
+    call    dbg_table           ; not safe
 
     call    sleep
-
+    ;jmp      slmain
 
     ;call dbg
     ;call all
     ;call dbg
     ;call sleep
-    
 
     call exit_13h
     ret
@@ -45,6 +66,11 @@ println:
     ret
 
 printnum:
+    push    ax
+    push    bx
+    push    cx
+    push    dx
+    
     mov     cx, 0
     mov     bx, 10
     loophere:
@@ -61,11 +87,16 @@ printnum:
     
     jnz     loophere
     mov     ah, 2                       ;2 is the function number of output char in the DOS Services.
-loophere2:
+    loophere2:
     pop     dx                          ;restore digits from last to first
     int     21h                         ;calls DOS Services
     loop    loophere2
     call    println
+    
+    pop    dx
+    pop    cx
+    pop    bx
+    pop    ax
     ret
 
 dbg:
@@ -90,7 +121,7 @@ exit_13h: ; Back to text mode
     int     10h
     ret
 
-sleep: ; Wait for key press
+sleep: ; ah not safe, Wait for key press
     xor     ah, ah
     int     16h
     ret
@@ -185,6 +216,11 @@ draw_block: ; ax = row, bx = column, cx = data_ptr
 ; http://www.codenet.ru/progr/dos/int_0009.php
 draw_interface: ; not safe    
     mov     dh, 0           ; row
+    mov     dl, 4          ; column
+    lea     cx, [snake_str] ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+
+    mov     dh, 0           ; row
     mov     dl, 22          ; column
     lea     cx, [score_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr 
@@ -201,7 +237,7 @@ draw_interface: ; not safe
         dil2:
             mov     ax, di
             mov     bx, si
-            call    draw_block      ; ax = row, bx = column, cx = data_ptr, everything dead, except si, di
+            call    draw_block      ; ax = row, bx = column, cx = data_ptr
             dec     si
             cmp     si, -1
             jnz     dil2
@@ -209,14 +245,14 @@ draw_interface: ; not safe
         cmp     di, 1
         jnz     dil1
 
-    lea     cx, [empty_block]
+    lea     cx, [empty_block_tex]
     mov     di, 22
     dil3:
         mov     si, 37
         dil4:
             mov     ax, di
             mov     bx, si
-            call    draw_block      ; ax = row, bx = column, cx = data_ptr, everything dead, except si, di
+            call    draw_block      ; ax = row, bx = column, cx = data_ptr
             dec     si
             mov     dx, 1
             cmp     si, dx
@@ -228,7 +264,254 @@ draw_interface: ; not safe
 
     ret
 
-upd_field:
+set_table: ; al = row, bl = column, cl = byte: ax, bx not safe  
+    xor     ah, ah
+    mov     bh, 40
+    mul     bh
+    xor     bh, bh
+    add     bx, ax
+    mov     [bx + table], cl        ; deleted tail1 from table
+    
+    ret
+
+move_tails:
+    mov     bx, [tail1]
+    lea     di, [bx + snake1_datay]     ; *snake1_tail_y    
+    lea     si, [bx + snake1_datax]     ; *snake1_tail_x
+
+    mov     al, [di]
+    mov     bl, [si]
+    mov     cl, 0
+    call    set_table
+
+    mov     al, [di]
+    mov     bl, [si]
+    mov     [old1x], al 
+    mov     [old1y], bl
+
+    mov     bx, [tail2]
+    lea     di, [bx + snake2_datay]     ; *snake1_tail_y 
+    lea     si, [bx + snake2_datax]     ; *snake1_tail_x
+    
+    mov     al, [di]
+    mov     bl, [si]
+    mov     cl, 0
+    call    set_table
+
+    mov     al, [di]
+    mov     bl, [si]
+    mov     [old2x], al
+    mov     [old2y], bl
+    mov     di, [tail1] ; TODO: check overflow
+    inc     di
+
+    cmp     di, 21 * 34
+    jnz     ovf1
+    mov     di, 0
+    ovf1:
+
+    mov     [tail1], di
+
+    mov     di, [tail2] ; TODO: check overflow
+    inc     di
+
+    cmp     di, 21 * 34
+    jnz     ovf4
+    mov     di, 0
+    ovf4:
+
+    mov     [tail2], di
+
+    ret
+
+move_step2:
+    mov     ah, [dir2]
+    jmp     ms2_enter
+
+
+move_step1:  ; al = x, bl = y, return: al = x', bl = y', ah not safe
+    mov     ah, [dir1]
+    ms2_enter:
+
+    cmp     ah, 0
+    jz      ms1_0
+
+    cmp     ah, 1
+    jz      ms1_1
+
+    cmp     ah, 2
+    jz      ms1_2
+
+    cmp     ah, 3
+    jz      ms1_3
+    
+    ms1_0:
+    dec     bl
+    jmp     ms1_exit
+
+    ms1_1:
+    inc     al
+    jmp     ms1_exit
+
+    ms1_2:
+    inc     bl
+    jmp     ms1_exit
+
+    ms1_3:
+    dec     al
+    jmp     ms1_exit
+
+
+    ms1_exit:
+    ret
+
+move_heads:
+    mov     bx, [head1]
+    lea     di, [bx + snake1_datax]     ; *snake1_head_x
+    lea     si, [bx + snake1_datay]     ; *snake1_head_y
+    xor     ah, ah
+    mov     al, [di]
+    xor     bh, bh
+    mov     bl, [si]
+
+    mov     [oldhead1x], bl
+    mov     [oldhead1y], al
+    call    move_step1  ; TODO: direction cases
+    mov     [new1x], al
+    mov     [new1y], bl
+
+    mov     bx, [head2]
+    lea     di, [bx + snake2_datax]     ; *snake1_head_x
+    lea     si, [bx + snake2_datay]     ; *snake1_head_y
+    xor     ah, ah
+    mov     al, [di]
+    xor     bh, bh
+    mov     bl, [si]
+
+    mov     [oldhead2x], bl
+    mov     [oldhead2y], al
+    call    move_step2
+    mov     [new2x], al
+    mov     [new2y], bl
+
+
+    mov     di, [head1] ; TODO: check overflow
+    inc     di
+    
+    cmp     di, 21 * 34
+    jnz     ovf2
+    mov     di, 0
+    ovf2:
+    
+    mov     [head1], di
+    mov     al, [new1x]
+    mov     [snake1_datax + di], al  
+    mov     al, [new1y]
+    mov     [snake1_datay + di], al
+    
+    mov     di, [head2] ; TODO: check overflow
+    inc     di
+
+    cmp     di, 21 * 34
+    jnz     ovf3
+    mov     di, 0
+    ovf3:
+
+    mov     [head2], di
+    mov     al, [new2x]
+    mov     [snake2_datax + di], al
+    mov     al, [new2y]
+    mov     [snake2_datay + di], al
+    
+    mov     al, [new1y]
+    mov     bl, [new1x]
+    mov     cl, 1
+    call    set_table
+
+    mov     al, [new2y]
+    mov     bl, [new2x]
+    mov     cl, 1
+    call    set_table
+
+    ret
+
+put_apples:
+    mov     al, [apple1]
+    cmp     al, 0
+    jnz     pa2
+    pa2:
+
+    ret
+
+upd_field: ; not safe
+    call    put_apples
+    call    move_tails
+    ; old[12][xy]
+
+    call    move_heads
+    ; new[12][xy]    
+    ; oldhead[12][xy]
+    
+    ; TODO: check death & apple
+
+    ; TODO: apple returns tail
+
+    ; TODO: same next values
+    
+    ; Everything ok?
+    
+
+    uf_exit:
+    ret
+
+upd_video:
+    ; TODO: case lost
+    ; TODO: case apple
+    xor     ah, ah
+    mov     al, [old1x]
+    xor     bh, bh
+    mov     bl, [old1y]
+    lea     cx, [empty_block_tex]
+    call    draw_block
+
+    xor     ah, ah
+    mov     al, [old2x]
+    xor     bh, bh
+    mov     bl, [old2y]
+    lea     cx, [empty_block_tex]
+    call    draw_block
+
+
+    xor     ah, ah
+    mov     al, [oldhead1x]
+    xor     bh, bh
+    mov     bl, [oldhead1y]
+    lea     cx, [snake1_tex]
+    call    draw_block
+
+    xor     ah, ah
+    mov     al, [oldhead2x]
+    xor     bh, bh
+    mov     bl, [oldhead2y]
+    lea     cx, [snake2_tex]
+    call    draw_block              
+
+
+    xor     ah, ah
+    mov     al, [new1y]
+    xor     bh, bh
+    mov     bl, [new1x]
+    lea     cx, [snake1_head_tex]
+    call    draw_block
+
+    xor     ah, ah
+    mov     al, [new2y]
+    xor     bh, bh
+    mov     bl, [new2x]
+    lea     cx, [snake2_head_tex]
+    call    draw_block
+
+    ret
 
 dbg_table: ; not safe
     mov     di, 23
@@ -263,12 +546,84 @@ dbg_table: ; not safe
         jnz     stl1
     ret
 
+read_char:  ; ret: al -> key code, zf -> result, ax not safe
+    mov     ah, 01h
+    int     16h
+    ret
+
+upd_dirs:   ; ax not safe
+    call    read_char
+    jz      ud_exit
+    call    sleep
+    
+    cmp     al, 119
+    jz      ud_w
+
+    cmp     al, 115
+    jz      ud_s
+
+    cmp     al, 97
+    jz      ud_a
+
+    cmp     al, 100
+    jz      ud_d
+
+    jmp     ud_p2
+
+    ud_w:
+    mov     [dir1], byte 0
+    jmp     ud_exit
+    
+    ud_a:
+    mov     [dir1], byte 3
+    jmp     ud_exit
+    
+    ud_s:
+    mov     [dir1], byte 2
+    jmp     ud_exit
+
+    ud_d:
+    mov     [dir1], byte 1
+    jmp     ud_exit
+
+    ud_p2:
+    cmp     al, 56
+    jz      ud_8
+
+    cmp     al, 52
+    jz      ud_4
+
+    cmp     al, 54
+    jz      ud_6
+
+    cmp     al, 53
+    jz      ud_5
+
+    ud_8:
+    mov     [dir2], byte 0
+    jmp     ud_exit
+    
+    ud_4:
+    mov     [dir2], byte 3
+    jmp     ud_exit
+    
+    ud_5:
+    mov     [dir2], byte 2
+    jmp     ud_exit
+
+    ud_6:
+    mov     [dir2], byte 1
+    jmp     ud_exit
+
+    ud_exit:
+    ret
+
 
 ini_field: ; not safe
     ; TODO: check overflow
     lea     di, [snake1_datax]
     lea     si, [snake1_datay]
-    lea     cx, [snake1]
+    lea     cx, [snake1_tex]
 
     mov     [di], byte 2
     mov     [si], byte 4
@@ -298,7 +653,7 @@ ini_field: ; not safe
     mov     bl, [di]
     call    draw_block
 
-    lea     cx, [snake1_head] 
+    lea     cx, [snake1_head_tex] 
     inc     si
     inc     di
     mov     [di], byte 5
@@ -311,7 +666,7 @@ ini_field: ; not safe
 
     lea     di, [snake2_datax]
     lea     si, [snake2_datay]
-    lea     cx, [snake2]
+    lea     cx, [snake2_tex]
 
     mov     [di], byte 37
     mov     [si], byte 22
@@ -341,7 +696,7 @@ ini_field: ; not safe
     mov     bl, [di]
     call    draw_block
 
-    lea     cx, [snake2_head] 
+    lea     cx, [snake2_head_tex] 
     inc     si
     inc     di
     mov     [di], byte 34
@@ -547,6 +902,8 @@ all:
 
 
 section      .data
+snake_str:
+    db      'SANEK II', 0
 score_str: 
     db      'score: ', 0
 hiscore_str:
@@ -563,7 +920,7 @@ brick:
     db      06h, 06h, 06h, 0xa1, 06h, 06h, 06h, 0xa1,
     db      72h, 72h, 72h, 0xa1, 72h, 72h, 72h, 0xa1
 
-snake1:
+snake1_tex:
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 9fh, 0ch,
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
@@ -573,7 +930,7 @@ snake1:
     db      0ch, 0ch, 0ch, 0ch, 9fh, 0ch, 0ch, 0ch,
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
 
-snake2:
+snake2_tex:
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 9fh, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
@@ -583,7 +940,7 @@ snake2:
     db      0ah, 0ah, 0ah, 0ah, 9fh, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah
 
-snake1_head:
+snake1_head_tex:
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
     db      0ch, 0ch, 00h, 00h, 00h, 00h, 0ch, 0ch,
@@ -593,7 +950,7 @@ snake1_head:
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch,
     db      0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch, 0ch
 
-snake2_head:
+snake2_head_tex:
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah, 0ah,
     db      0ah, 0ah, 00h, 00h, 00h, 00h, 0ah, 0ah,
@@ -605,7 +962,7 @@ snake2_head:
 
 
 section     .bss
-empty_block:
+empty_block_tex:
     resb    8 * 8
 snake1_datax:
     resb    21 * 34
@@ -636,4 +993,32 @@ tail2:
 game_over:
     resb    1
 score:
+    resb    1
+old1x:
+    resw    1
+old2x:
+    resw    1
+old1y:
+    resw    1
+old2y:
+    resw    1
+new1x:
+    resw    1
+new2x:
+    resw    1
+new1y:
+    resw    1
+new2y:
+    resw    1
+oldhead1x:
+    resw    1
+oldhead2x:
+    resw    1
+oldhead1y:
+    resw    1
+oldhead2y:
+    resw    1
+apple1:
+    resb    1
+apple2:
     resb    1
