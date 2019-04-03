@@ -9,40 +9,29 @@ _start:
     mov     ax, 0a000h 
     mov     es, ax
 
-    ; mov     ax, data 
-    ; mov     ds, ax 
-    
-    ;call    sleep
-
-
-
-
     call    draw_interface      ; not safe
     call    ini_field           ; not safe
     
     slmain:
-    call    upd_field           ; not safe
-    call    upd_video           ; not safe
+        call    upd_field           ; not safe
+
+        cmp     [game_over], byte 0
+        jnz     finish
+        
+        call    upd_video           ; not safe
+        
+        
+        mov     cx, 65000
+        wait_key:
+            call    upd_dirs
+            loop    wait_key
+        jmp     slmain
+        
+    finish:
     
-    ;call    dbg_table
-    
-    mov     cx, 30000
-    wait_key:
-    call    upd_dirs
-    loop    wait_key
-
-    ;call    sleep
-    jmp     slmain
+    call    endgame
 
     
-    call    sleep
-    ;jmp      slmain
-
-    ;call dbg
-    ;call all
-    ;call dbg
-    ;call sleep
-
     call exit_13h
     ret
 
@@ -438,7 +427,7 @@ move_heads:
     jnz     ovf2
     mov     di, 0
     ovf2:
-    
+
     mov     [head1], di
     mov     al, [new1x]
     mov     [snake1_datax + di], al  
@@ -459,7 +448,7 @@ move_heads:
     mov     al, [new2y]
     mov     [snake2_datay + di], al
     
-    mov     al, [new1y]
+    mov     al, [new1y]         ; apple 1
     mov     bl, [new1x]
     call    get_table
     cmp     cl, 4
@@ -468,7 +457,7 @@ move_heads:
     call    add_tail1
     
     mh1:
-    mov     al, [new2y]
+    mov     al, [new2y]         ; apple 2
     mov     bl, [new2x]
     call    get_table
     cmp     cl, 4
@@ -477,6 +466,33 @@ move_heads:
     call    add_tail2
 
     mh2:
+
+    mov     al, [new1y]         ; snake / wall 1
+    mov     bl, [new1x]
+    call    get_table
+    cmp     cl, 0
+    jz     mh3
+    cmp     cl, 2
+    jz     mh3
+    cmp     cl, 4
+    jz     mh3
+    add     byte [game_over], 1
+    
+    mh3:
+
+    mov     al, [new2y]         ; snake / wall 2
+    mov     bl, [new2x]
+    call    get_table
+    cmp     cl, 0
+    jz     mh4
+    cmp     cl, 3
+    jz     mh4
+    cmp     cl, 4
+    jz     mh4
+    add     byte [game_over], 2
+    
+    mh4: ; TODO: animation?
+
     mov     al, [new1y]
     mov     bl, [new1x]
     mov     cl, 2
@@ -485,15 +501,42 @@ move_heads:
     mov     al, [new2y]
     mov     bl, [new2x]
     mov     cl, 3
-    call    set_table
-
-
+    call    set_table  
 
     ret
 
 endgame:
-    call dbg_table
-    call sleep
+    mov     dh, 5           ; row
+    mov     dl, 5           ; column
+
+    cmp     [game_over], byte 1
+    jz      p2_wins
+
+    cmp     [game_over], byte 2
+    jz      p1_wins
+
+    cmp     [game_over], byte 3
+    jz      eg_draw
+
+    p1_wins:
+    lea     cx, [player1_wins_str] ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+    jmp     eg_end
+
+    p2_wins:
+    lea     cx, [player2_wins_str] ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+    jmp     eg_end
+
+    eg_draw:
+    lea     cx, [draw_str]  ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+    jmp     eg_end
+
+
+    eg_end:
+    ;call    dbg_table
+    call    sleep
     ret
 
 put_apples: ; not safe
@@ -565,9 +608,7 @@ upd_field: ; not safe
     ; TODO: same next values
     
     ; Everything ok?
-    
-    call endgame
-    
+
     ret
 
 upd_video:
@@ -686,18 +727,26 @@ upd_dirs:   ; ax not safe
     jmp     ud_p2
 
     ud_w:
+    cmp     [dir1], byte 2
+    jz      ud_exit
     mov     [dir1], byte 0
     jmp     ud_exit
     
     ud_a:
+    cmp     [dir1], byte 1
+    jz      ud_exit
     mov     [dir1], byte 3
     jmp     ud_exit
     
     ud_s:
+    cmp     [dir1], byte 0
+    jz      ud_exit
     mov     [dir1], byte 2
     jmp     ud_exit
 
     ud_d:
+    cmp     [dir1], byte 3
+    jz      ud_exit
     mov     [dir1], byte 1
     jmp     ud_exit
 
@@ -879,7 +928,6 @@ ini_field: ; not safe
     mov     [table + 40 * 4 + 4], byte 2
     mov     [table + 40 * 4 + 5], byte 2
 
-
     mov     cx, 40
 
     mov     [tail1], word 0
@@ -902,8 +950,12 @@ player1_score_str:
     db      'Player 1: ', 0
 player2_score_str:
     db      'Player 2: ', 0
-hiscore:
-    db      0
+player1_wins_str:
+    db      'Player 1 wins!', 0
+player2_wins_str:
+    db      'Player 2 wins!', 0
+draw_str:
+    db      'Draw!', 0
 brick:
     db      06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
     db      72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
