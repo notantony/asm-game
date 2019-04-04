@@ -227,12 +227,12 @@ draw_interface: ; not safe
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
 
     mov     dh, 0           ; row
-    mov     dl, 22          ; column
+    mov     dl, 27          ; column
     lea     cx, [player1_score_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr 
 
     mov     dh, 1           ; row
-    mov     dl, 22          ; column
+    mov     dl, 25          ; column
     lea     cx, [player2_score_str] ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr 
 
@@ -555,14 +555,14 @@ endgame:
     p1_wins:
     lea     cx, [player1_wins_str] ; data_ptr
     mov     dh, 10           ; row
-    mov     dl, 12          ; column
+    mov     dl, 14          ; column
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
     jmp     eg_end
 
     p2_wins:
     lea     cx, [player2_wins_str] ; data_ptr
     mov     dh, 10           ; row
-    mov     dl, 12          ; column
+    mov     dl, 14          ; column
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
     jmp     eg_end
 
@@ -726,6 +726,12 @@ upd_video: ; not safe
     mov     al, [score2]
     call    printnum
 
+
+    mov     dh, 1
+    mov     dl, 9
+    lea     cx, [empty4_str]
+    call    draw_word
+    
     mov     dh, 1
     mov     dl, 9
     mov     ah, 02h
@@ -1236,13 +1242,13 @@ section      .data
 snake_str:
     db      'SANEK II', 0
 player1_score_str: 
-    db      'Player 1: ', 0
+    db      'Red:      ', 0
 player2_score_str:
-    db      'Player 2: ', 0
+    db      'Green:      ', 0
 player1_wins_str:
-    db      'Player 1 wins!', 0
+    db      'Red wins!', 0
 player2_wins_str:
-    db      'Player 2 wins!', 0
+    db      'Green wins!', 0
 draw_str:
     db      'Draw!', 0
 restart_str:
@@ -1309,6 +1315,8 @@ apple_tex:
     db      0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh,
     db      00h, 0eh, 0eh, 0eh, 0eh, 0eh, 0eh, 00h,
     db      00h, 00h, 0eh, 0eh, 0eh, 00h, 00h, 00h
+empty4_str:
+    db      '    ', 0
 section     .bss
 empty_block_tex:
     resb    8 * 8
