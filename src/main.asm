@@ -9,6 +9,8 @@ _start:
     mov     ax, 0a000h 
     mov     es, ax
 
+    begin:
+
     call    draw_interface      ; not safe
     call    ini_field           ; not safe
     
@@ -17,22 +19,37 @@ _start:
 
         cmp     [game_over], byte 0
         jnz     finish
+
+        dec     word [time]
+        cmp     word [time], -1
+        jz      finish
+        
         
         call    upd_video           ; not safe
         
         
         mov     cx, 65000
-        wait_key:
-            call    upd_dirs
-            loop    wait_key
+        wait_main:
+            mov     bx, 2
+            wait_main_1:
+                dec     bx
+                jnz     wait_main_1
+            loop    wait_main
+        call    upd_dirs
+        call    upd_dirs
         jmp     slmain
         
     finish:
-    
     call    endgame
 
-    
-    call exit_13h
+    wait_key_end:
+    call    sleep
+    cmp     al, 32
+    jz      begin
+    cmp     al, 113
+    jnz     wait_key_end
+
+    call    exit_13h
     ret
 
 
@@ -57,24 +74,24 @@ printnum:
     
     mov     cx, 0
     mov     bx, 10
-    loophere:
+    pn:
         mov     dx, 0
-        div     bx                          ;divide by ten
+        div     bx
 
         push    ax
-        add     dl, '0'                     ;convert dl to ascii
+        add     dl, '0'
 
         pop     ax                          ;restore ax
-        push    dx                         ;digits are in reversed order, must use stack
+        push    dx                          ;digits are in reversed order, must use stack
         inc     cx                          ;remember how many digits we pushed to stack
-        cmp     ax, 0                       ;if ax is zero, we can quit
+        cmp     ax, 0                       
     
-    jnz     loophere
+    jnz     pn
     mov     ah, 2                       ;2 is the function number of output char in the DOS Services.
-    loophere2:
+    pn2:
     pop     dx                          ;restore digits from last to first
     int     21h                         ;calls DOS Services
-    loop    loophere2
+    loop    pn2
     call    println
     
     pop    dx
@@ -120,7 +137,7 @@ ini_timer: ; https://en.wikibooks.org/wiki/X86_Assembly/Programmable_Interval_Ti
 
 
 
-draw_letter: ; al = letter, white color
+draw_letter: ; al = letter, white color, ah not safe
     push    bx
     xor     bh, bh
     mov     bl, 15 ; bl = color 
@@ -137,6 +154,7 @@ draw_word: ; dh = row, dl = column, cx = data_ptr
     mov     di, 0           ; offset
     dwl1:
         mov     ah, 02h
+        xor     bh, bh      ; page
         int     10h         ; set cursor, dh = row, dl = column
 
         mov     bx, cx 
@@ -200,6 +218,11 @@ draw_interface: ; not safe
     mov     dh, 0           ; row
     mov     dl, 3           ; column
     lea     cx, [snake_str] ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+
+    mov     dh, 1           ; row
+    mov     dl, 3           ; column
+    lea     cx, [time_str]  ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
 
     mov     dh, 0           ; row
@@ -454,6 +477,7 @@ move_heads:
     cmp     cl, 4
     jnz     mh1
     add     [apple], byte 1
+    inc     byte [score1]
     call    add_tail1
     
     mh1:
@@ -463,6 +487,7 @@ move_heads:
     cmp     cl, 4
     jnz     mh2
     add     [apple], byte 2
+    inc     byte [score2]
     call    add_tail2
 
     mh2:
@@ -472,8 +497,8 @@ move_heads:
     call    get_table
     cmp     cl, 0
     jz     mh3
-    cmp     cl, 2
-    jz     mh3
+    ; cmp     cl, 2
+    ; jz     mh3
     cmp     cl, 4
     jz     mh3
     add     byte [game_over], 1
@@ -485,8 +510,8 @@ move_heads:
     call    get_table
     cmp     cl, 0
     jz     mh4
-    cmp     cl, 3
-    jz     mh4
+    ; cmp     cl, 3
+    ; jz     mh4
     cmp     cl, 4
     jz     mh4
     add     byte [game_over], 2
@@ -506,9 +531,6 @@ move_heads:
     ret
 
 endgame:
-    mov     dh, 5           ; row
-    mov     dl, 5           ; column
-
     cmp     [game_over], byte 1
     jz      p2_wins
 
@@ -518,25 +540,44 @@ endgame:
     cmp     [game_over], byte 3
     jz      eg_draw
 
+    lea     cx, [time_up_str] ; data_ptr
+    mov     dh, 8           ; row
+    mov     dl, 14          ; column
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+    
+    mov     al, [score1]
+    cmp     al, [score2]
+    ja      p1_wins
+    jz      eg_draw
+    jmp     p2_wins
+
     p1_wins:
     lea     cx, [player1_wins_str] ; data_ptr
+    mov     dh, 10           ; row
+    mov     dl, 12          ; column
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
     jmp     eg_end
 
     p2_wins:
     lea     cx, [player2_wins_str] ; data_ptr
+    mov     dh, 10           ; row
+    mov     dl, 12          ; column
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
     jmp     eg_end
 
     eg_draw:
+    mov     dh, 10           ; row
+    mov     dl, 16          ; column
     lea     cx, [draw_str]  ; data_ptr
     call    draw_word       ; dh = row, dl = column, cx = data_ptr
     jmp     eg_end
 
-
-    eg_end:
-    ;call    dbg_table
-    call    sleep
+    eg_end:   
+    mov     dh, 12           ; row
+    mov     dl, 3           ; column
+    lea     cx, [restart_str] ; data_ptr
+    call    draw_word       ; dh = row, dl = column, cx = data_ptr
+    
     ret
 
 put_apples: ; not safe
@@ -611,9 +652,7 @@ upd_field: ; not safe
 
     ret
 
-upd_video:
-    ; TODO: case game over
-    ; TODO: case apple
+upd_video: ; not safe
     mov     ah, [apple] 
     cmp     ah, 2
     jz      uv1   
@@ -666,6 +705,32 @@ upd_video:
     mov     bl, [new2x]
     lea     cx, [snake2_head_tex]
     call    draw_block
+
+    mov     dh, 0
+    mov     dl, 32 
+    mov     ah, 02h
+    xor     bh, bh      ; page
+    int     10h         ; set cursor, dh = row, dl = column
+    xor     ah, ah
+    mov     al, [score1]
+    call    printnum
+
+    mov     dh, 1
+    mov     dl, 32 
+    mov     ah, 02h
+    xor     bh, bh      ; page
+    int     10h         ; set cursor, dh = row, dl = column
+    xor     ah, ah
+    mov     al, [score2]
+    call    printnum
+
+    mov     dh, 1
+    mov     dl, 9
+    mov     ah, 02h
+    xor     bh, bh      ; page
+    int     10h         ; set cursor, dh = row, dl = column
+    mov     ax, [time]
+    call    printnum
 
     ret
 
@@ -769,18 +834,26 @@ upd_dirs:   ; ax not safe
     jmp     ud_exit
 
     ud_8:
+    cmp     [dir2], byte 2
+    jz      ud_exit
     mov     [dir2], byte 0
     jmp     ud_exit
     
     ud_4:
+    cmp     [dir2], byte 1
+    jz      ud_exit
     mov     [dir2], byte 3
     jmp     ud_exit
     
     ud_5:
+    cmp     [dir2], byte 0
+    jz      ud_exit
     mov     [dir2], byte 2
     jmp     ud_exit
 
     ud_6:
+    cmp     [dir2], byte 3
+    jz      ud_exit
     mov     [dir2], byte 1
     jmp     ud_exit
 
@@ -938,8 +1011,14 @@ ini_field: ; not safe
     mov     [dir1], byte 1
     mov     [dir2], byte 3
 
+    mov     [apple], byte 0   
     mov     [game_over], byte 0
-    mov     [score], word 0    
+    mov     [score1], byte 0
+    mov     [score2], byte 0
+    mov     [button1], byte -1
+    mov     [button2], byte -1
+    mov     [time], word 999
+
     ret
 
 
@@ -956,6 +1035,12 @@ player2_wins_str:
     db      'Player 2 wins!', 0
 draw_str:
     db      'Draw!', 0
+restart_str:
+    db      'Press SPACE to restart, Q for exit', 0
+time_str:
+    db      'Time: ', 0
+time_up_str:
+    db      "Time's up!", 0
 brick:
     db      06h, 0xa1, 06h, 06h, 06h, 0xa1, 06h, 06h,
     db      72h, 0xa1, 72h, 72h, 72h, 0xa1, 72h, 72h,
@@ -1041,8 +1126,6 @@ tail2:
     resw    1
 game_over:
     resb    1
-score:
-    resb    1
 old1x:
     resw    1
 old2x:
@@ -1069,3 +1152,13 @@ oldhead2y:
     resw    1
 apple:
     resb    1
+score1:
+    resb    1
+score2:
+    resb    1
+button1:
+    resb    1
+button2:
+    resb    1
+time:
+    resw    1
