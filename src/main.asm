@@ -28,15 +28,18 @@ _start:
         call    upd_video           ; not safe
         
         
-        mov     cx, 65000
+        mov     cx, 30000
         wait_main:
             mov     bx, 2
             wait_main_1:
                 dec     bx
-                jnz     wait_main_1
+                call    controls_put
+                ;jnz     wait_main_1
             loop    wait_main
-        call    upd_dirs
-        call    upd_dirs
+        call    controls_eat1
+        call    controls_eat2
+        ;call    upd_dirs
+        ;call    upd_dirs
         jmp     slmain
         
     finish:
@@ -757,7 +760,6 @@ dbg_table: ; not safe
             add     al, '0'
 
             call    draw_letter
-
           
             dec     si
             cmp     si, 0
@@ -766,6 +768,212 @@ dbg_table: ; not safe
         cmp     di, 2
         jnz     stl1
     ret
+
+convert1: ; al = button; return al = [0,4)
+    cmp     al, 119
+    jz      c1w
+    cmp     al, 115
+    jz      c1s
+    cmp     al, 97
+    jz      c1a
+    cmp     al, 100
+    jz      c1d
+    c1w:
+    mov     al, 0 
+    jmp     c1ret
+    c1s:
+    mov     al, 2
+    jmp     c1ret
+    c1a:
+    mov     al, 3 
+    jmp     c1ret
+    c1d:
+    mov     al, 1 
+    
+    c1ret:
+    ret
+
+convert2: ; al = button; return al = [0,4)
+    cmp     al, 56
+    jz      c2w
+    cmp     al, 53
+    jz      c2s
+    cmp     al, 52
+    jz      c2a
+    cmp     al, 54
+    jz      c2d
+    c2w:
+    mov     al, 0 
+    jmp     c2ret
+    c2s:
+    mov     al, 2
+    jmp     c2ret
+    c2a:
+    mov     al, 3 
+    jmp     c2ret
+    c2d:
+    mov     al, 1 
+    
+    c2ret:
+    ret
+
+is_ok: ; ah = b1, al = b2; return cl = 1/0
+    mov     cl, ah
+    xor     cl, al
+    and     cl, 1
+    ret
+
+controls_put: ; not safe
+    call    read_char
+    jz      uc_exit
+    call    sleep
+    cmp     al, 119
+    jz      uc_fst
+    cmp     al, 115
+    jz      uc_fst
+    cmp     al, 97
+    jz      uc_fst
+    cmp     al, 100
+    jz      uc_fst
+    
+    jmp     uc2
+
+    uc_fst:
+    call    convert1
+    cmp     [buttonsc1], byte 0
+    jz      uc_b11
+    cmp     [buttonsc1], byte 1
+    jz      uc_b12    
+    
+    jmp     uc_exit ; count == 2
+
+    uc_b11:
+    mov     ah, [dir1]
+
+    call    is_ok ; cl = 0/1, 1 = ok
+    test    cl, cl
+    jz      uc_exit
+    
+    mov     [buttons1], al
+    mov     [buttonsc1], byte 1 
+    jmp     uc_exit
+    
+    uc_b12:
+    mov     ah, [buttons1]
+
+    call    is_ok ; cl = 0/1, 1 = ok
+    test    cl, cl
+    jz      uc_exit
+
+    mov     [buttons1 + 1], al
+    mov     [buttonsc1], byte 2
+
+    uc2:
+
+    cmp     al, 52
+    jz      uc_snd
+    cmp     al, 53
+    jz      uc_snd
+    cmp     al, 54
+    jz      uc_snd
+    cmp     al, 56
+    jz      uc_snd
+    
+    cmp     al, 32
+    jz      uc_space
+
+    jmp     uc_exit
+    
+    
+    uc_snd:
+    call    convert2
+    cmp     [buttonsc2], byte 0
+    jz      uc_b21
+    cmp     [buttonsc2], byte 1
+    jz      uc_b22    
+    
+    jmp     uc_exit ; count == 2
+
+    uc_b21:
+    mov     ah, [dir2]
+
+    call    is_ok ; cl = 0/1, 1 = ok
+    test    cl, cl
+    jz      uc_exit
+    
+    mov     [buttons2], al
+    mov     [buttonsc2], byte 1 
+    jmp     uc_exit
+    
+    uc_b22:
+    mov     ah, [buttons2]
+
+    call    is_ok ; cl = 0/1, 1 = ok
+    test    cl, cl
+    jz      uc_exit
+
+    mov     [buttons2 + 1], al
+    mov     [buttonsc2], byte 2
+    jmp     uc_exit
+
+    uc_space:
+    call    sleep
+
+    uc_exit:
+    ret
+
+controls_eat1:
+    cmp     [buttonsc1], byte 1
+    jz      ce1_1
+    cmp     [buttonsc1], byte 2
+    jz      ce1_2
+
+    jmp     ce1_exit ; count = 0
+
+    ce1_1:
+    mov     al, [buttons1]
+    mov     [buttonsc1], byte 0
+    jmp     ce1_mdf
+
+    ce1_2:
+    mov     al, [buttons1]
+    mov     [buttonsc1], byte 1
+    mov     ah, [buttons1 + 1]
+    mov     [buttons1], ah
+    jmp     ce1_mdf
+    
+    ce1_mdf:
+    mov     [dir1], al
+    
+    ce1_exit:
+    ret
+
+controls_eat2:
+    cmp     [buttonsc2], byte 1
+    jz      ce2_1
+    cmp     [buttonsc2], byte 2
+    jz      ce2_2
+
+    jmp     ce2_exit ; count = 0
+
+    ce2_1:
+    mov     al, [buttons2]
+    mov     [buttonsc2], byte 0
+    jmp     ce2_mdf
+
+    ce2_2:
+    mov     al, [buttons2]
+    mov     [buttonsc2], byte 1
+    mov     ah, [buttons2 + 1]
+    mov     [buttons2], ah
+    jmp     ce2_mdf
+    
+    ce2_mdf:
+    mov     [dir2], al
+    
+    ce2_exit:
+    ret
+
 
 read_char:  ; ret: al -> key code, zf -> result, ax not safe
     mov     ah, 01h
@@ -788,6 +996,9 @@ upd_dirs:   ; ax not safe
 
     cmp     al, 100
     jz      ud_d
+
+    cmp     al, 32
+    jz      ud_space
 
     jmp     ud_p2
 
@@ -1015,8 +1226,8 @@ ini_field: ; not safe
     mov     [game_over], byte 0
     mov     [score1], byte 0
     mov     [score2], byte 0
-    mov     [button1], byte -1
-    mov     [button2], byte -1
+    mov     [buttonsc1], byte 0
+    mov     [buttonsc2], byte 0
     mov     [time], word 999
 
     ret
@@ -1156,9 +1367,13 @@ score1:
     resb    1
 score2:
     resb    1
-button1:
+buttons1:
+    resb    2
+buttons2:
+    resb    2
+buttonsc1:
     resb    1
-button2:
+buttonsc2:
     resb    1
 time:
     resw    1
