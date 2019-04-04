@@ -17,15 +17,15 @@ _start:
     slmain:
         call    upd_field           ; not safe
 
-        cmp     [game_over], byte 0
-        jnz     finish
-
         dec     word [time]
         cmp     word [time], -1
         jz      finish
         
         call    upd_video           ; not safe
         
+        cmp     [game_over], byte 0
+        jnz     finish
+
         mov     cx, 30000
         wait_main:
             mov     bx, 2
@@ -514,7 +514,7 @@ move_heads:
     ; cmp     cl, 3
     ; jz     mh4
     cmp     cl, 4
-    jz     mh4
+    jz      mh4
     add     byte [game_over], 2
     
     mh4: ; TODO: animation?
