@@ -24,9 +24,7 @@ _start:
         cmp     word [time], -1
         jz      finish
         
-        
         call    upd_video           ; not safe
-        
         
         mov     cx, 30000
         wait_main:
@@ -627,6 +625,7 @@ put_apples: ; not safe
 
     mov     cl, byte 4
     call    set_table
+    mov     [time], word 169
     pa_exit:
 
     ret
@@ -1228,7 +1227,7 @@ ini_field: ; not safe
     mov     [score2], byte 0
     mov     [buttonsc1], byte 0
     mov     [buttonsc2], byte 0
-    mov     [time], word 999
+    mov     [time], word 169
 
     ret
 
